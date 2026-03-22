@@ -1,6 +1,6 @@
 # Claude Code + Local LLM
 
-> Run **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** with fully local models — via **Ollama** or **llama-server** (llama.cpp). No API cost, no internet required.
+> Run **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** with fully local models — via **Ollama** or **llama-server** (llama.cpp). No API cost, no internet required. Supports **vision/OCR** with multimodal models.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)
 ![LiteLLM](https://img.shields.io/badge/LiteLLM-proxy-green)
@@ -14,9 +14,9 @@
 
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) is Anthropic's official CLI tool that turns Claude into an AI coding assistant running directly in your terminal. It can:
 
-- Read and edit files in your project
+- Read, search, and edit files in your project
 - Execute shell commands
-- Search codebases and answer questions about code
+- Read images and perform OCR (with multimodal models)
 - Run multi-turn conversations with full context of your project
 
 By default, Claude Code connects to Anthropic's cloud API (requires a paid API key). **This project lets you run Claude Code against a local model instead** — completely free and private.
@@ -25,7 +25,7 @@ By default, Claude Code connects to Anthropic's cloud API (requires a paid API k
 
 ## How It Works
 
-Claude Code speaks Anthropic's API format. Local models (Ollama, llama-server) speak OpenAI's API format. **LiteLLM** sits in the middle and translates between them:
+Claude Code speaks Anthropic's API format. Local models (Ollama, llama-server) speak OpenAI's API format. **[LiteLLM](https://github.com/BerriAI/litellm)** sits in the middle and translates between them:
 
 ```
 ┌─────────────┐  Anthropic format  ┌─────────────┐  OpenAI format  ┌──────────────────┐
@@ -34,7 +34,7 @@ Claude Code speaks Anthropic's API format. Local models (Ollama, llama-server) s
 └─────────────┘                    └─────────────┘                 └──────────────────┘
 ```
 
-A single `.env` file controls which backend to use. The wrapper script `claude_ollama.sh` auto-starts LiteLLM, connects everything, and cleans up on exit — **one command to launch**.
+A single **`.env`** file controls which backend to use, model settings, and thinking mode. The wrapper script `claude_ollama.sh` auto-starts LiteLLM, connects everything, and cleans up on exit — **one command to launch**.
 
 ---
 
@@ -42,8 +42,8 @@ A single `.env` file controls which backend to use. The wrapper script `claude_o
 
 | Backend | Description | When to use |
 |---|---|---|
-| **Ollama** | Model manager + inference server | Easiest setup, many models available via `ollama pull` |
-| **llama-server** (llama.cpp) | Lightweight inference server | Full control over GGUF models, context size, parallel slots |
+| **[Ollama](https://ollama.com)** | Model manager + inference server | Easiest setup, many models available via `ollama pull` |
+| **[llama-server](https://github.com/ggerganov/llama.cpp)** (llama.cpp) | Lightweight inference server | Full control over GGUF models, context size, parallel slots, vision (mmproj) |
 
 ---
 
@@ -54,8 +54,8 @@ A single `.env` file controls which backend to use. The wrapper script `claude_o
 | **Claude Code CLI** | latest | `npm install -g @anthropic-ai/claude-code` |
 | **Python** | 3.8+ | System package manager or [python.org](https://python.org) |
 | **LiteLLM** | latest | `pip install 'litellm[proxy]'` (see below) |
-| **Ollama** | latest | [ollama.com](https://ollama.com) (if using Ollama backend) |
-| **llama.cpp** | latest | [Build from source](https://github.com/ggerganov/llama.cpp) (if using llama-server backend) |
+| **Ollama** | latest | [ollama.com](https://ollama.com) — if using Ollama backend |
+| **llama.cpp** | latest | [Build from source](https://github.com/ggerganov/llama.cpp) — if using llama-server backend |
 
 ---
 
@@ -105,7 +105,7 @@ chmod +x claude_ollama.sh start_litellm.sh start_llamacpp.sh
 
 ## Configuration (.env)
 
-All settings are in a single **`.env`** file. Edit it once, and all scripts read from it automatically.
+All settings are in a single **`.env`** file. Edit it once, and all scripts read from it automatically. `litellm_config.yaml` is **auto-generated** — do not edit it manually.
 
 ```bash
 # Backend: "ollama" or "llamacpp"
@@ -124,26 +124,32 @@ LLAMACPP_MODEL=Qwen3.5-27B
 LLAMACPP_API_KEY=none
 LLAMACPP_BIN=/path/to/llama.cpp/build/bin/llama-server
 LLAMACPP_MODELS_PRESET="/path/to/model-preset.ini"
-LLAMACPP_NP=5              # parallel slots
+LLAMACPP_NP=5              # parallel inference slots
 LLAMACPP_CTX=8192           # context window size
 LLAMACPP_MODELS_MAX=1
 LLAMACPP_GUI_PATH="/path/to/gui"
 
 # === LiteLLM proxy settings ===
 LITELLM_PORT=4000
+
+# === Thinking model settings ===
+# "true"  = disable thinking (recommended: faster, vision/OCR works correctly)
+# "false" = keep thinking enabled (better for complex reasoning, but slower)
+DISABLE_THINKING=true
 ```
 
-### Key settings to change
+### Key settings
 
 | Setting | What to change |
 |---|---|
 | `BACKEND` | `ollama` or `llamacpp` — switches the entire pipeline |
 | `OLLAMA_PORT` | Default Ollama port is `11434`. Change if yours differs |
-| `OLLAMA_MODEL` | The exact model name from `ollama list` |
+| `OLLAMA_MODEL` | Exact model name from `ollama list` |
 | `LLAMACPP_BIN` | Absolute path to your `llama-server` binary |
 | `LLAMACPP_MODELS_PRESET` | Path to your model's `.ini` preset file |
 | `LLAMACPP_CTX` | Context window size (e.g., `8192`, `32768`, `220000`) |
 | `LLAMACPP_NP` | Number of parallel inference slots |
+| `DISABLE_THINKING` | `true` to disable thinking mode (see [Pitfalls](#-thinking-models-empty-responses-and-visionocr-failure)) |
 
 ---
 
@@ -191,8 +197,8 @@ ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_API_KEY=ollama-local claude
 ## What happens when you run `./claude_ollama.sh`
 
 1. Loads settings from `.env`
-2. Checks if LiteLLM proxy is already running
-3. If not, starts LiteLLM in the background (logs to `/tmp/litellm.log`)
+2. Checks if LiteLLM proxy is already running on the configured port
+3. If not running, starts LiteLLM in the background (logs to `/tmp/litellm.log`)
 4. Waits for LiteLLM to become healthy (up to 30 seconds)
 5. Launches `claude` CLI with `ANTHROPIC_BASE_URL` pointing to LiteLLM
 6. When you exit Claude Code, automatically kills the LiteLLM proxy it started
@@ -205,9 +211,9 @@ ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_API_KEY=ollama-local claude
 
 ```
 claude_code_ollama/
-├── .env                   # All configuration (backend, ports, model, paths)
-├── claude_ollama.sh       # Main entry point — launches everything
-├── start_litellm.sh       # Generates litellm_config.yaml and starts LiteLLM
+├── .env                   # All configuration (backend, ports, model, paths, thinking)
+├── claude_ollama.sh       # Main entry point — auto-starts LiteLLM, launches Claude Code
+├── start_litellm.sh       # Generates litellm_config.yaml from .env and starts LiteLLM
 ├── start_llamacpp.sh      # Starts llama-server from .env settings
 ├── litellm_config.yaml    # Auto-generated by start_litellm.sh (do not edit manually)
 ├── CLAUDE.md              # In-session instructions for Claude Code
@@ -251,65 +257,103 @@ Why they don't interfere: `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` are set *
 
 ---
 
-## Ollama vs llama-server comparison
+## Ollama vs llama-server
 
 | | Ollama | llama-server (llama.cpp) |
 |---|---|---|
 | **Setup** | `ollama pull <model>` | Build llama.cpp + download GGUF |
-| **Model management** | Built-in (`ollama list`, `ollama pull`) | Manual (specify file paths) |
+| **Model management** | Built-in (`ollama list`, `ollama pull`) | Manual (specify file paths / `.ini` presets) |
 | **Context window** | Model default | `-c` flag (fully customizable) |
 | **Parallel slots** | Automatic | `-np` flag (fully customizable) |
 | **GPU layers** | Automatic | `--n-gpu-layers` flag |
+| **Vision/Multimodal** | Depends on model | `mmproj` GGUF for vision support |
 | **Port** | Default `11434` | Any (set in `.env`) |
 | **API format** | OpenAI-compatible `/v1` | OpenAI-compatible `/v1` |
-| **Best for** | Quick setup, model experimentation | Production, fine-tuned control |
+| **Best for** | Quick setup, experimentation | Production, fine-tuned control |
 
 ---
 
-## Troubleshooting
+## Common Pitfalls
 
-### LiteLLM proxy failed to start
+### `litellm[proxy]` vs `litellm`
+
+| Install command | Result |
+|---|---|
+| `pip install litellm` | Library only — `litellm --config` fails with missing modules (`uvicorn`, `fastapi`) |
+| `pip install 'litellm[proxy]'` | Full proxy server with all dependencies |
+
+Always use `pip install 'litellm[proxy]'`.
+
+### Thinking models: empty responses and vision/OCR failure
+
+**This is the most common issue** when using models like Qwen3.5, QwQ, DeepSeek-R1, or any model with built-in "thinking" mode.
+
+**Symptoms:**
+- Claude Code gets empty responses (`content: []`)
+- Vision/OCR requests return nothing even though the model supports images
+- The model appears to "think" for a long time but produces no output
+
+**Root cause:** Thinking models split output into two fields:
+- `reasoning_content` — internal chain-of-thought (can consume thousands of tokens)
+- `content` — the actual answer
+
+When thinking is enabled, the model may use **all** `max_tokens` for reasoning and never produce any `content`. Additionally, LiteLLM cannot properly translate `reasoning_content` back to Anthropic Messages API format, so Claude Code always sees empty `content: []`.
+
+**Fix:** Set `DISABLE_THINKING=true` in `.env` (this is the default). This sends `chat_template_kwargs: {enable_thinking: false}` to the backend, forcing the model to write directly to `content`.
 
 ```bash
-# Check logs
-cat /tmp/litellm.log
+# .env
+DISABLE_THINKING=true    # recommended for general use, OCR, and vision
+DISABLE_THINKING=false   # only if you need deep reasoning and accept empty-response risk
+```
 
-# Check if port is in use
+**Trade-off:** Disabling thinking makes responses faster and fixes vision/OCR, but may slightly reduce quality on complex multi-step reasoning tasks.
+
+### Port conflict
+
+```bash
+# Check if port 4000 is already in use
 ss -tlnp | grep 4000
 ```
 
-### `command not found: litellm`
+If conflicting, change `LITELLM_PORT` in `.env`. All scripts will pick up the new port automatically.
+
+### Ollama port is not default
+
+This setup uses Ollama on port **7869** (not the default `11434`). Make sure `OLLAMA_PORT` in `.env` matches your Ollama configuration.
+
+### Model name must match exactly
+
+The model name in `.env` must match the backend's model name character-for-character:
 
 ```bash
-# If installed in a venv, activate it first
+# Check Ollama model names
+curl -s http://localhost:7869/api/tags | python3 -m json.tool
+
+# Check llama-server model names
+curl -s http://localhost:8081/v1/models | python3 -m json.tool
+```
+
+### venv not activated before running scripts
+
+If LiteLLM was installed in a virtual environment, activate it first:
+
+```bash
 source ~/venv/litellm/bin/activate
-
-# Verify
-which litellm
+./claude_ollama.sh
 ```
 
-### `No module named uvicorn`
-
-You installed `litellm` instead of `litellm[proxy]`:
+Or set the full path to litellm in `start_litellm.sh`:
 
 ```bash
-pip install 'litellm[proxy]'
+~/venv/litellm/bin/litellm --config "$CONFIG_FILE" --port "$LITELLM_PORT"
 ```
 
-### Empty response from thinking models (e.g., Qwen3.5)
+### Claude Code sends a new model name after update
 
-Qwen3.5 and similar "thinking" models use tokens for internal reasoning before producing the answer. If `max_tokens` is too low, all tokens are consumed by reasoning and the response appears empty.
-
-The config includes `merge_reasoning_content_in_choices: true` to handle this. If you still see empty responses, the model likely needs more tokens to complete its reasoning chain.
-
-### Claude Code sends an unknown model name
-
-After a Claude Code update, it may request a new model name not in the config.
-
-**Fix:** Add the model name to the `CLAUDE_MODELS` array in `start_litellm.sh`, then restart:
+When Claude Code updates, it may request a model name not in the config. **Fix:** Add the name to the `CLAUDE_MODELS` array in `start_litellm.sh`:
 
 ```bash
-# In start_litellm.sh, add to CLAUDE_MODELS array:
 CLAUDE_MODELS=(
     claude-sonnet-4-6
     claude-opus-4-6
@@ -318,22 +362,64 @@ CLAUDE_MODELS=(
 )
 ```
 
+Then restart Claude Code (`./claude_ollama.sh` — it will regenerate the config automatically).
+
+### Vision/OCR not working with llama-server
+
+If your model supports vision but images aren't being processed:
+
+1. Ensure your `.ini` preset includes the `mmproj` (multimodal projector) GGUF file
+2. Ensure `DISABLE_THINKING=true` in `.env` (thinking mode blocks vision output)
+3. Test vision directly against llama-server to isolate the issue:
+
+```bash
+# Create a test payload with a base64 image
+python3 -c "
+from PIL import Image
+import io, base64, json
+img = Image.open('your_image.png')
+img.thumbnail((600, 600))
+buf = io.BytesIO()
+img.save(buf, format='PNG')
+b64 = base64.b64encode(buf.getvalue()).decode()
+payload = {
+    'model': 'Qwen3.5-27B',
+    'max_tokens': 2000,
+    'chat_template_kwargs': {'enable_thinking': False},
+    'messages': [{'role': 'user', 'content': [
+        {'type': 'image_url', 'image_url': {'url': f'data:image/png;base64,{b64}'}},
+        {'type': 'text', 'text': 'Extract text from this image.'}
+    ]}]
+}
+with open('/tmp/vision_test.json', 'w') as f:
+    json.dump(payload, f)
+"
+
+curl -s -X POST http://localhost:8081/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d @/tmp/vision_test.json | python3 -m json.tool
+```
+
+---
+
+## Troubleshooting
+
 ### Diagnose each layer
 
 ```bash
-# 1. Is the backend running?
-curl -s http://localhost:8081/health          # llama-server
-curl -s http://localhost:7869/api/tags        # Ollama
+# Layer 1: Is the backend running?
+curl -s http://localhost:7869/api/tags            # Ollama
+curl -s http://localhost:8081/health              # llama-server
 
-# 2. Is LiteLLM healthy?
+# Layer 2: Is LiteLLM healthy?
 curl -s http://localhost:4000/health | python3 -m json.tool
 
-# 3. Test backend directly
+# Layer 3: Test backend directly (OpenAI format)
 curl -s -X POST http://localhost:8081/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"Qwen3.5-27B","messages":[{"role":"user","content":"hello"}],"max_tokens":200}'
 
-# 4. Test through LiteLLM (Anthropic format, same as Claude Code)
+# Layer 4: Test through LiteLLM (Anthropic format — same as Claude Code)
 curl -s -X POST http://localhost:4000/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: ollama-local" \
@@ -341,14 +427,34 @@ curl -s -X POST http://localhost:4000/v1/messages \
   -d '{"model":"claude-sonnet-4-6","max_tokens":200,"messages":[{"role":"user","content":"hello"}]}'
 ```
 
+### View LiteLLM logs
+
+```bash
+cat /tmp/litellm.log
+```
+
+### Common errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `command not found: litellm` | venv not activated or not installed | `source ~/venv/litellm/bin/activate` then `pip install 'litellm[proxy]'` |
+| `No module named uvicorn` | Installed `litellm` instead of `litellm[proxy]` | `pip install 'litellm[proxy]'` |
+| `Invalid model name passed in model=...` | Claude Code sent a model name not in config | Add the name to `CLAUDE_MODELS` in `start_litellm.sh` |
+| `LiteLLM proxy failed to start` | Port conflict or config error | Check `cat /tmp/litellm.log` and `ss -tlnp \| grep 4000` |
+| Empty response / `content: []` | Thinking model used all tokens for reasoning | Set `DISABLE_THINKING=true` in `.env` |
+| Vision returns empty | Thinking mode blocks vision output | Set `DISABLE_THINKING=true` in `.env` |
+
 ---
 
 ## Notes
 
-- `litellm_config.yaml` is **auto-generated** by `start_litellm.sh` from `.env` — do not edit it manually
-- `drop_params: true` in LiteLLM config strips Anthropic-only parameters that local backends don't support
-- `ANTHROPIC_API_KEY=ollama-local` is a dummy value — any non-empty string works since we're not hitting Anthropic's real API
-- Env vars are set only inside the `claude_ollama.sh` process and do not affect other terminals
+- `litellm_config.yaml` is **auto-generated** by `start_litellm.sh` from `.env` — do not edit it manually, changes will be overwritten on next start
+- `drop_params: true` — LiteLLM strips Anthropic-only parameters the backend doesn't support
+- `ANTHROPIC_API_KEY=ollama-local` — dummy value, any non-empty string works
+- `ANTHROPIC_BASE_URL` — redirects Claude Code to LiteLLM instead of Anthropic's cloud
+- Env vars are scoped to the `claude_ollama.sh` process only — other terminals are unaffected
+- `merge_reasoning_content_in_choices: true` — merges thinking model reasoning into content for OpenAI format pass-through
+- `extra_body.chat_template_kwargs.enable_thinking` — controls whether the backend model uses thinking mode
 
 ---
 

@@ -1,5 +1,3 @@
-<p align="center"><b><span style="color: red; font-size: 1.5em;">ฉันตัด internet แล้ว แต่ก็ยังรัน claude code local llm ได้นะ</span></b></p>
-
 # Claude Code + Local LLM
 
 > Run **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** with fully local models — via **Ollama** or **llama-server** (llama.cpp). No API cost, no internet required.

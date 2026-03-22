@@ -1,83 +1,65 @@
-# 🦙 Claude Code + Ollama
+# Claude Code + Local LLM
 
-> Run Claude Code CLI with **fully local AI models** via Ollama — no API cost, no internet required.
+> Run **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** with fully local models — via **Ollama** or **llama-server** (llama.cpp). No API cost, no internet required.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)
 ![LiteLLM](https://img.shields.io/badge/LiteLLM-proxy-green)
 ![Ollama](https://img.shields.io/badge/Ollama-local%20AI-orange)
+![llama.cpp](https://img.shields.io/badge/llama.cpp-local%20AI-red)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 ---
 
-## ✨ Features
+## What is Claude Code?
 
-- 🔒 **Privacy-first** — all inference runs locally, no data leaves your machine
-- 💸 **Zero API cost** — bypass Anthropic API billing entirely
-- 🔄 **Non-conflicting** — runs independently from your Claude Pro account; both can be active at the same time in separate terminals
-- 🧩 **Drop-in replacement** — uses the same `claude` CLI you already have installed
-- ⚡ **Any Ollama model** — swap to any model you have pulled locally by editing one config file
-- 🛠️ **Full Claude Code features** — tools, file editing, bash execution, multi-turn — all work as normal
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) is Anthropic's official CLI tool that turns Claude into an AI coding assistant running directly in your terminal. It can:
 
----
+- Read and edit files in your project
+- Execute shell commands
+- Search codebases and answer questions about code
+- Run multi-turn conversations with full context of your project
 
-## 🏗️ How It Works
-
-```
-┌─────────────────┐   Anthropic API format   ┌──────────────────┐   OpenAI format   ┌─────────────────┐
-│                 │ ───────────────────────▶  │                  │ ────────────────▶ │                 │
-│   Claude Code   │                           │  LiteLLM Proxy   │                   │  Ollama (local) │
-│   (CLI)         │ ◀───────────────────────  │  localhost:4000  │ ◀──────────────── │  localhost:7869 │
-│                 │   Anthropic API format     │                  │   OpenAI format   │                 │
-└─────────────────┘                           └──────────────────┘                   └─────────────────┘
-```
-
-Claude Code sends requests in Anthropic's format. LiteLLM translates them to OpenAI-compatible format that Ollama understands — completely transparent to Claude Code.
+By default, Claude Code connects to Anthropic's cloud API (requires a paid API key). **This project lets you run Claude Code against a local model instead** — completely free and private.
 
 ---
 
-## 🆚 Claude Pro vs Claude Code + Ollama
+## How It Works
 
-| | Claude Pro (normal) | Claude Code + Ollama |
+Claude Code speaks Anthropic's API format. Local models (Ollama, llama-server) speak OpenAI's API format. **LiteLLM** sits in the middle and translates between them:
+
+```
+┌─────────────┐  Anthropic format  ┌─────────────┐  OpenAI format  ┌──────────────────┐
+│ Claude Code │ ─────────────────▶ │   LiteLLM   │ ─────────────▶ │  Ollama          │
+│ (CLI)       │ ◀───────────────── │   Proxy     │ ◀───────────── │  or llama-server │
+└─────────────┘                    └─────────────┘                 └──────────────────┘
+```
+
+A single `.env` file controls which backend to use. The wrapper script `claude_ollama.sh` auto-starts LiteLLM, connects everything, and cleans up on exit — **one command to launch**.
+
+---
+
+## Supported Backends
+
+| Backend | Description | When to use |
 |---|---|---|
-| **Model** | Claude Sonnet / Opus (Anthropic cloud) | Local model via Ollama |
-| **API cost** | Billed to your account | Free |
-| **Internet** | Required | Not required |
-| **Privacy** | Data sent to Anthropic | Stays on your machine |
-| **Speed** | Depends on network | Depends on your hardware |
-| **Can run simultaneously** | ✅ Yes | ✅ Yes |
-
-> **Both sessions are fully independent.** `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` are set only inside `claude_ollama.sh` as local env vars — they do not affect other terminals or your Claude Pro session running elsewhere.
+| **Ollama** | Model manager + inference server | Easiest setup, many models available via `ollama pull` |
+| **llama-server** (llama.cpp) | Lightweight inference server | Full control over GGUF models, context size, parallel slots |
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
-| Requirement | Version | Notes |
+| Requirement | Version | Install |
 |---|---|---|
-| [Claude Code CLI](https://claude.ai/code) | latest | `npm install -g @anthropic-ai/claude-code` |
-| [Ollama](https://ollama.com) | latest | Must be running on `localhost:7869` |
-| Python | 3.8+ | Required for LiteLLM |
-| pip | latest | Used to install LiteLLM |
-
-### Check prerequisites
-
-```bash
-# Claude Code
-claude --version
-
-# Ollama
-curl -s http://localhost:7869/api/tags
-
-# Python
-python3 --version
-
-# pip
-pip3 --version
-```
+| **Claude Code CLI** | latest | `npm install -g @anthropic-ai/claude-code` |
+| **Python** | 3.8+ | System package manager or [python.org](https://python.org) |
+| **LiteLLM** | latest | `pip install 'litellm[proxy]'` (see below) |
+| **Ollama** | latest | [ollama.com](https://ollama.com) (if using Ollama backend) |
+| **llama.cpp** | latest | [Build from source](https://github.com/ggerganov/llama.cpp) (if using llama-server backend) |
 
 ---
 
-## 🚀 Quick Start
+## Installation
 
 ### 1. Clone this repo
 
@@ -88,9 +70,9 @@ cd claude_code_ollama
 
 ### 2. Install LiteLLM
 
-> ⚠️ **Important:** Install `litellm[proxy]`, not just `litellm`. The `[proxy]` extras include server dependencies required to run `litellm --config`.
+> **Important:** Install `litellm[proxy]`, not just `litellm`. The `[proxy]` extras include server dependencies (uvicorn, fastapi, etc.) required to run the proxy.
 
-**Recommended — virtual environment (prevents dependency conflicts):**
+**Recommended — use a virtual environment:**
 
 ```bash
 python3 -m venv ~/venv/litellm
@@ -102,312 +84,274 @@ pip install 'litellm[proxy]'
 
 ```bash
 pip install 'litellm[proxy]'
-# or on systems where pip3 is separate
-pip3 install 'litellm[proxy]'
 ```
 
-**Verify the install:**
+**Verify:**
 
 ```bash
 which litellm
 litellm --version
 ```
 
-### 3. Pull a model in Ollama
+> If `command not found` after installing in a venv, activate it first: `source ~/venv/litellm/bin/activate`
+
+### 3. Make scripts executable
 
 ```bash
-# Pull the model used in this setup
-ollama pull gpt-oss:120b
-
-# Or list models you already have
-curl -s http://localhost:7869/api/tags | python3 -m json.tool
-```
-
-### 4. Configure your model
-
-Edit `litellm_config.yaml` — change `gpt-oss:120b` to match the Ollama model you pulled:
-
-```yaml
-model_list:
-  - model_name: claude-sonnet-4-6      # name Claude Code sends (do not change)
-    litellm_params:
-      model: openai/gpt-oss:120b        # ← change this to your Ollama model
-      api_base: http://localhost:7869/v1
-      api_key: ollama
-```
-
-### 5. Make scripts executable
-
-```bash
-chmod +x start_litellm.sh claude_ollama.sh
-```
-
-### 6. Start LiteLLM proxy — Terminal 1
-
-```bash
-# If installed in venv, activate first
-source ~/venv/litellm/bin/activate
-
-./start_litellm.sh
-```
-
-Wait until you see `Application startup complete` or `LiteLLM Proxy: ✅` before proceeding.
-
-### 7. Run Claude Code with Ollama — Terminal 2
-
-```bash
-./claude_ollama.sh
+chmod +x claude_ollama.sh start_litellm.sh start_llamacpp.sh
 ```
 
 ---
 
-## 📂 Project Structure
+## Configuration (.env)
+
+All settings are in a single **`.env`** file. Edit it once, and all scripts read from it automatically.
+
+```bash
+# Backend: "ollama" or "llamacpp"
+BACKEND=ollama
+
+# === Ollama settings ===
+OLLAMA_HOST=localhost
+OLLAMA_PORT=7869
+OLLAMA_MODEL=gpt-oss:120b
+OLLAMA_API_KEY=ollama
+
+# === llama-server (llama.cpp) settings ===
+LLAMACPP_HOST=127.0.0.1
+LLAMACPP_PORT=8081
+LLAMACPP_MODEL=Qwen3.5-27B
+LLAMACPP_API_KEY=none
+LLAMACPP_BIN=/path/to/llama.cpp/build/bin/llama-server
+LLAMACPP_MODELS_PRESET="/path/to/model-preset.ini"
+LLAMACPP_NP=5              # parallel slots
+LLAMACPP_CTX=8192           # context window size
+LLAMACPP_MODELS_MAX=1
+LLAMACPP_GUI_PATH="/path/to/gui"
+
+# === LiteLLM proxy settings ===
+LITELLM_PORT=4000
+```
+
+### Key settings to change
+
+| Setting | What to change |
+|---|---|
+| `BACKEND` | `ollama` or `llamacpp` — switches the entire pipeline |
+| `OLLAMA_PORT` | Default Ollama port is `11434`. Change if yours differs |
+| `OLLAMA_MODEL` | The exact model name from `ollama list` |
+| `LLAMACPP_BIN` | Absolute path to your `llama-server` binary |
+| `LLAMACPP_MODELS_PRESET` | Path to your model's `.ini` preset file |
+| `LLAMACPP_CTX` | Context window size (e.g., `8192`, `32768`, `220000`) |
+| `LLAMACPP_NP` | Number of parallel inference slots |
+
+---
+
+## Usage
+
+### Option A: Ollama backend
+
+```bash
+# 1. Set BACKEND=ollama in .env (one-time)
+
+# 2. Make sure Ollama is running with your model
+ollama pull gpt-oss:120b    # if not already pulled
+
+# 3. Launch Claude Code (auto-starts LiteLLM proxy)
+./claude_ollama.sh
+```
+
+### Option B: llama-server backend
+
+```bash
+# 1. Set BACKEND=llamacpp in .env (one-time)
+
+# 2. Start llama-server (Terminal 1)
+./start_llamacpp.sh
+
+# 3. Launch Claude Code (Terminal 2 — auto-starts LiteLLM proxy)
+./claude_ollama.sh
+```
+
+### Passing arguments to Claude Code
+
+```bash
+./claude_ollama.sh -p "explain this codebase"
+./claude_ollama.sh --dangerously-skip-permissions
+```
+
+### Running without the wrapper script
+
+```bash
+ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_API_KEY=ollama-local claude
+```
+
+---
+
+## What happens when you run `./claude_ollama.sh`
+
+1. Loads settings from `.env`
+2. Checks if LiteLLM proxy is already running
+3. If not, starts LiteLLM in the background (logs to `/tmp/litellm.log`)
+4. Waits for LiteLLM to become healthy (up to 30 seconds)
+5. Launches `claude` CLI with `ANTHROPIC_BASE_URL` pointing to LiteLLM
+6. When you exit Claude Code, automatically kills the LiteLLM proxy it started
+
+**One command. No manual terminal juggling.**
+
+---
+
+## Project Structure
 
 ```
 claude_code_ollama/
-├── claude_ollama.sh       # Wrapper: sets env vars and launches Claude Code
-├── start_litellm.sh       # Starts LiteLLM proxy on port 4000
-├── litellm_config.yaml    # Model name mappings (Claude → Ollama)
+├── .env                   # All configuration (backend, ports, model, paths)
+├── claude_ollama.sh       # Main entry point — launches everything
+├── start_litellm.sh       # Generates litellm_config.yaml and starts LiteLLM
+├── start_llamacpp.sh      # Starts llama-server from .env settings
+├── litellm_config.yaml    # Auto-generated by start_litellm.sh (do not edit manually)
 ├── CLAUDE.md              # In-session instructions for Claude Code
 └── README.md              # This file
 ```
 
 ---
 
-## ⚙️ Configuration
+## How the proxy translates models
 
-### `litellm_config.yaml`
+Claude Code requests specific Anthropic model names. LiteLLM maps **all of them** to your single local model:
 
-Maps every model name that Claude Code might request to your local Ollama model. Claude Code sends a specific model name (e.g. `claude-sonnet-4-6`) — LiteLLM looks it up here and forwards to Ollama.
-
-```yaml
-model_list:
-  - model_name: claude-sonnet-4-6
-    litellm_params:
-      model: openai/gpt-oss:120b
-      api_base: http://localhost:7869/v1
-      api_key: ollama
-
-  - model_name: claude-opus-4-6
-    litellm_params:
-      model: openai/gpt-oss:120b
-      api_base: http://localhost:7869/v1
-      api_key: ollama
-
-  # Add more entries if Claude Code uses other model names
-  # (see Troubleshooting below)
-
-litellm_settings:
-  drop_params: true    # strips Anthropic-only params Ollama doesn't understand
-  set_verbose: false
-```
-
-### Model Mappings
-
-All Claude model names currently map to `gpt-oss:120b`:
-
-| Claude model name | Ollama model |
+| Claude Code requests | Your local model |
 |---|---|
-| `claude-sonnet-4-6` | `gpt-oss:120b` |
-| `claude-opus-4-6` | `gpt-oss:120b` |
-| `claude-haiku-4-6` | `gpt-oss:120b` |
-| `claude-sonnet-4-5` | `gpt-oss:120b` |
-| `claude-opus-4-5` | `gpt-oss:120b` |
-| `claude-haiku-4-5-20251001` | `gpt-oss:120b` |
-| `claude-3-5-sonnet-20241022` | `gpt-oss:120b` |
+| `claude-sonnet-4-6` | Whatever is set in `.env` |
+| `claude-opus-4-6` | Whatever is set in `.env` |
+| `claude-haiku-4-6` | Whatever is set in `.env` |
+| `claude-sonnet-4-5` | Whatever is set in `.env` |
+| `claude-opus-4-5` | Whatever is set in `.env` |
+| `claude-haiku-4-5-20251001` | Whatever is set in `.env` |
+| `claude-3-5-sonnet-20241022` | Whatever is set in `.env` |
 
-### Using a different Ollama model
+The mapping is auto-generated by `start_litellm.sh` from your `.env` — no need to edit `litellm_config.yaml` manually.
 
-Change `openai/<model-name>` to any model you have in Ollama:
-
-```yaml
-model: openai/qwen2.5-coder:32b
-# or
-model: openai/llama3.3:70b
-# or
-model: openai/mistral:latest
-```
+> If Claude Code updates and sends a new model name, add it to the `CLAUDE_MODELS` array in `start_litellm.sh`.
 
 ---
 
-## 🔄 Running Both Sessions Simultaneously
+## Running alongside Claude Pro
 
-You can run your **normal Claude Pro session** and **Claude Code + Ollama** at the same time without conflict:
+You can run your **normal Claude Pro session** and the **local model session** simultaneously without conflict:
 
 ```
-Terminal A                          Terminal B              Terminal C
-──────────────────────────          ──────────────────      ──────────────────────
-$ claude                            $ ./start_litellm.sh    $ ./claude_ollama.sh
-▶ Uses Anthropic API (Pro)          ▶ LiteLLM proxy         ▶ Uses local Ollama
+Terminal A                    Terminal B                    Terminal C
+────────────────────          ────────────────────          ────────────────────
+$ claude                      $ ./start_llamacpp.sh         $ ./claude_ollama.sh
+→ Uses Anthropic API (Pro)    → llama-server                → Uses local model
 ```
 
-**Why they don't interfere:**
-- `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` are set as local `export` inside `claude_ollama.sh`
-- These env vars only apply to that specific shell process and its child processes
-- Your other terminals retain their original env (pointing to Anthropic's real API)
+Why they don't interfere: `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` are set **only** inside `claude_ollama.sh` as local env vars. Other terminals are unaffected.
 
 ---
 
-## ⚠️ Common Pitfalls
+## Ollama vs llama-server comparison
 
-### `litellm` vs `litellm[proxy]`
+| | Ollama | llama-server (llama.cpp) |
+|---|---|---|
+| **Setup** | `ollama pull <model>` | Build llama.cpp + download GGUF |
+| **Model management** | Built-in (`ollama list`, `ollama pull`) | Manual (specify file paths) |
+| **Context window** | Model default | `-c` flag (fully customizable) |
+| **Parallel slots** | Automatic | `-np` flag (fully customizable) |
+| **GPU layers** | Automatic | `--n-gpu-layers` flag |
+| **Port** | Default `11434` | Any (set in `.env`) |
+| **API format** | OpenAI-compatible `/v1` | OpenAI-compatible `/v1` |
+| **Best for** | Quick setup, model experimentation | Production, fine-tuned control |
 
-| Install command | Result |
-|---|---|
-| `pip install litellm` | Library only — `litellm --config` may fail with missing modules |
-| `pip install 'litellm[proxy]'` | ✅ Full proxy server with all dependencies |
+---
 
-Always use `pip install 'litellm[proxy]'`.
+## Troubleshooting
 
-### venv not activated before running `start_litellm.sh`
-
-If you installed LiteLLM in a virtual environment, you must activate it before running the proxy:
-
-```bash
-source ~/venv/litellm/bin/activate
-./start_litellm.sh
-```
-
-Or set the full path to litellm in `start_litellm.sh`:
+### LiteLLM proxy failed to start
 
 ```bash
-~/venv/litellm/bin/litellm --config "$CONFIG_DIR/litellm_config.yaml" --port 4000
-```
+# Check logs
+cat /tmp/litellm.log
 
-### Ollama port is not default
-
-This setup uses Ollama on port **7869** (not the default `11434`). If your Ollama runs on the default port, update `api_base` in `litellm_config.yaml`:
-
-```yaml
-api_base: http://localhost:11434/v1
-```
-
-### Port 4000 conflict
-
-Check if another process is using port 4000:
-
-```bash
+# Check if port is in use
 ss -tlnp | grep 4000
-# or
-lsof -i :4000
-```
-
-If conflicting, change the port in `start_litellm.sh` and update `ANTHROPIC_BASE_URL` in `claude_ollama.sh` to match.
-
-### Model name in Ollama must match exactly
-
-Get the exact model name from Ollama:
-
-```bash
-curl -s http://localhost:7869/api/tags | python3 -m json.tool
-```
-
-The name in `litellm_config.yaml` must match the `name` field in this output character-for-character.
-
----
-
-## 🛠️ Troubleshooting
-
-### `Invalid model name passed in model=claude-sonnet-4-6`
-
-Claude Code is requesting a model name not listed in your config (this happens after Claude Code updates).
-
-**Fix:** Add the missing entry to `litellm_config.yaml`:
-
-```yaml
-- model_name: claude-sonnet-4-6   # the exact name shown in the error
-  litellm_params:
-    model: openai/gpt-oss:120b
-    api_base: http://localhost:7869/v1
-    api_key: ollama
-```
-
-Then restart LiteLLM:
-
-```bash
-pkill -f "litellm --config"
-./start_litellm.sh
-```
-
-### `ERROR: LiteLLM proxy is not running on port 4000`
-
-```bash
-# Check if it's running
-curl -s http://localhost:4000/health
-
-# Start it
-./start_litellm.sh
 ```
 
 ### `command not found: litellm`
 
 ```bash
-# If installed in venv
+# If installed in a venv, activate it first
 source ~/venv/litellm/bin/activate
 
-# Reinstall if needed
+# Verify
+which litellm
+```
+
+### `No module named uvicorn`
+
+You installed `litellm` instead of `litellm[proxy]`:
+
+```bash
 pip install 'litellm[proxy]'
 ```
 
-### `No module named uvicorn` or other import errors
+### Empty response from thinking models (e.g., Qwen3.5)
+
+Qwen3.5 and similar "thinking" models use tokens for internal reasoning before producing the answer. If `max_tokens` is too low, all tokens are consumed by reasoning and the response appears empty.
+
+The config includes `merge_reasoning_content_in_choices: true` to handle this. If you still see empty responses, the model likely needs more tokens to complete its reasoning chain.
+
+### Claude Code sends an unknown model name
+
+After a Claude Code update, it may request a new model name not in the config.
+
+**Fix:** Add the model name to the `CLAUDE_MODELS` array in `start_litellm.sh`, then restart:
 
 ```bash
-# Must use proxy extras
-pip install 'litellm[proxy]'
+# In start_litellm.sh, add to CLAUDE_MODELS array:
+CLAUDE_MODELS=(
+    claude-sonnet-4-6
+    claude-opus-4-6
+    ...
+    new-model-name-here    # add the name from the error message
+)
 ```
 
-### Dependency conflict during pip install
+### Diagnose each layer
 
 ```bash
-# Install in a clean venv
-python3 -m venv ~/venv/litellm-fresh
-source ~/venv/litellm-fresh/bin/activate
-pip install 'litellm[proxy]'
-```
+# 1. Is the backend running?
+curl -s http://localhost:8081/health          # llama-server
+curl -s http://localhost:7869/api/tags        # Ollama
 
-### Diagnose each layer independently
-
-```bash
-# Layer 1: Is Ollama running?
-curl -s http://localhost:7869/api/tags | python3 -m json.tool
-
-# Layer 2: Is LiteLLM proxy healthy?
+# 2. Is LiteLLM healthy?
 curl -s http://localhost:4000/health | python3 -m json.tool
 
-# Layer 3: Test Ollama directly (OpenAI format)
-curl -s -X POST http://localhost:7869/v1/chat/completions \
+# 3. Test backend directly
+curl -s -X POST http://localhost:8081/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-oss:120b","messages":[{"role":"user","content":"hello"}],"stream":false}' \
-  | python3 -m json.tool
+  -d '{"model":"Qwen3.5-27B","messages":[{"role":"user","content":"hello"}],"max_tokens":200}'
 
-# Layer 4: Test LiteLLM proxy (Anthropic format)
+# 4. Test through LiteLLM (Anthropic format, same as Claude Code)
 curl -s -X POST http://localhost:4000/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: ollama-local" \
   -H "anthropic-version: 2023-06-01" \
-  -d '{"model":"claude-sonnet-4-6","max_tokens":50,"messages":[{"role":"user","content":"hello"}]}' \
-  | python3 -m json.tool
-```
-
-### View LiteLLM logs
-
-```bash
-# Foreground mode: logs appear in the terminal running start_litellm.sh
-# Background mode:
-cat /tmp/litellm.log
+  -d '{"model":"claude-sonnet-4-6","max_tokens":200,"messages":[{"role":"user","content":"hello"}]}'
 ```
 
 ---
 
-## 📝 Notes
+## Notes
 
-- `drop_params: true` — LiteLLM automatically strips Anthropic-only parameters that Ollama doesn't support
-- `ANTHROPIC_API_KEY=ollama-local` — any non-empty string works; it's not validated since we're not hitting Anthropic's real API
-- `ANTHROPIC_BASE_URL=http://localhost:4000` — redirects Claude Code to LiteLLM instead of Anthropic
-- When Claude Code updates, it may use new model names — just add them to `litellm_config.yaml` and restart
+- `litellm_config.yaml` is **auto-generated** by `start_litellm.sh` from `.env` — do not edit it manually
+- `drop_params: true` in LiteLLM config strips Anthropic-only parameters that local backends don't support
+- `ANTHROPIC_API_KEY=ollama-local` is a dummy value — any non-empty string works since we're not hitting Anthropic's real API
+- Env vars are set only inside the `claude_ollama.sh` process and do not affect other terminals
 
 ---
 
-## 📝 License
+## License
 
 MIT

@@ -1,6 +1,8 @@
 # Claude Code + Local LLM
 
-> Run **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** with fully local models — via **Ollama** or **llama-server** (llama.cpp). No API cost, no internet required. Supports **vision/OCR** with multimodal models.
+> Run **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** with fully local models — via **Ollama** or **llama-server** (llama.cpp). No API cost, no internet required.
+>
+> Tuned for **Ollama + gpt-oss:120b** (text-only) and **llama-server + Qwen3.5-27B** (multimodal with vision/OCR support).
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)
 ![LiteLLM](https://img.shields.io/badge/LiteLLM-proxy-green)
@@ -40,10 +42,14 @@ A single **`.env`** file controls which backend to use, model settings, and infe
 
 ## Supported Backends
 
-| Backend | Description | When to use |
-|---|---|---|
-| **[Ollama](https://ollama.com)** | Model manager + inference server | Easiest setup, many models available via `ollama pull` |
-| **[llama-server](https://github.com/ggerganov/llama.cpp)** (llama.cpp) | Lightweight inference server | Full control over GGUF models, context size, parallel slots, vision (mmproj) |
+| Backend | Model | Vision/Multimodal | Description |
+|---|---|---|---|
+| **[Ollama](https://ollama.com)** | `gpt-oss:120b` | No | Text-only. Easiest setup via `ollama pull` |
+| **[llama-server](https://github.com/ggerganov/llama.cpp)** | `Qwen3.5-27B` | **Yes** | Multimodal (text + vision/OCR). Full control over GGUF, context size, parallel slots |
+
+> **Note:** This project is tuned and tested with the specific models above.
+> - **Ollama + gpt-oss:120b** — optimized for text tasks only (chat, coding, reasoning). This model does not support image input.
+> - **llama-server + Qwen3.5-27B** — optimized for multimodal tasks including vision/OCR. Requires `mmproj` (multimodal projector) GGUF in the model preset. Use the `ocr` preset for image/document reading.
 
 ---
 
@@ -98,7 +104,7 @@ litellm --version
 ### 3. Make scripts executable
 
 ```bash
-chmod +x claude_ollama.sh start_litellm.sh start_llamacpp.sh
+chmod +x claude_ollama.sh start_litellm.sh start_llamacpp.sh reload_litellm.sh
 ```
 
 ---
@@ -155,7 +161,7 @@ PRESET=instruct-general
 
 ## Inference Presets
 
-Presets control **thinking mode, temperature, sampling, and penalties**. Change `PRESET` in `.env` then restart `./claude_ollama.sh`.
+Presets control **thinking mode, temperature, sampling, and penalties**. Change `PRESET` in `.env` then run `./reload_litellm.sh` to apply — **no need to restart Claude Code**.
 
 | Preset | Thinking | Temp | top_p | top_k | min_p | presence_penalty | Best for |
 |---|---|---|---|---|---|---|---|
@@ -180,14 +186,16 @@ Presets control **thinking mode, temperature, sampling, and penalties**. Change 
 ### When to use which preset
 
 ```
-Need to read images / OCR?          → ocr
+Need to read images / OCR?          → ocr  (requires llama-server + Qwen3.5-27B)
 Writing or debugging complex code?  → thinking-coding
 General reasoning or analysis?      → thinking-general
 General chat or simple tasks?       → instruct-general  (default)
 Need reasoning but faster?          → instruct-reasoning
 ```
 
-> **After changing `PRESET`**, restart Claude Code (`./claude_ollama.sh`). The config is regenerated automatically on each start.
+> **Vision/OCR requires llama-server backend** with Qwen3.5-27B (multimodal). The Ollama + gpt-oss:120b backend is text-only and does not support image input.
+
+> **After changing `PRESET`**, run `./reload_litellm.sh` to apply — no need to restart Claude Code. The `/preset` skill does this automatically.
 
 ---
 
@@ -244,6 +252,20 @@ ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_API_KEY=ollama-local claude
 
 **One command. No manual terminal juggling.**
 
+### Hot-reloading presets (without restarting Claude Code)
+
+```bash
+# Option A: Use the /preset skill inside Claude Code (fully automatic)
+/preset refactor auth module with tests
+
+# Option B: Edit .env manually, then reload
+# 1. Change PRESET=thinking-coding in .env
+# 2. Run from another terminal (or ! prefix inside Claude Code):
+./reload_litellm.sh
+```
+
+`reload_litellm.sh` regenerates `litellm_config.yaml`, restarts LiteLLM, and waits until the proxy is healthy — Claude Code keeps running and picks up the new settings on the next request.
+
 ---
 
 ## Slash Commands (Skills)
@@ -252,7 +274,7 @@ Built-in Claude Code slash commands for managing inference presets and checking 
 
 | Command | Description |
 |---|---|
-| `/preset <task description>` | Analyze a task and recommend the best inference preset. Auto-updates `.env` if a change is needed |
+| `/preset <task description>` | Analyze a task, recommend preset, auto-update `.env` and hot-reload LiteLLM |
 | `/status` | Show current backend config, active preset parameters, and health status |
 
 ### `/preset` — Smart Preset Selection
@@ -260,14 +282,14 @@ Built-in Claude Code slash commands for managing inference presets and checking 
 Describe your task and the skill will recommend the optimal preset based on the workload:
 
 ```
-/preset อ่านข้อความจากรูปใบเสร็จ          → recommends ocr
+/preset อ่านข้อความจากรูปภาพ               → recommends ocr
 /preset refactor auth module with tests    → recommends thinking-coding
-/preset solve this math problem            → recommends thinking-general
-/preset แปลเอกสารนี้เป็นภาษาไทย           → recommends instruct-general
-/preset explain mutex vs semaphore         → recommends instruct-reasoning
+/preset วิเคราะห์ข้อดีข้อเสียของ design นี้  → recommends thinking-general
+/preset สรุปเนื้อหาให้หน่อย                 → recommends instruct-general
+/preset เปรียบเทียบ REST vs GraphQL        → recommends instruct-reasoning
 ```
 
-If the recommended preset differs from the current one, it automatically updates `.env`. Restart `./claude_ollama.sh` to apply.
+If the recommended preset differs from the current one, it automatically updates `.env` **and hot-reloads LiteLLM** — no restart needed.
 
 ### `/status` — Configuration & Health Check
 
@@ -287,6 +309,7 @@ claude_code_ollama/
 ├── claude_ollama.sh            # Main entry point — auto-starts LiteLLM, launches Claude Code
 ├── start_litellm.sh            # Generates litellm_config.yaml from .env and starts LiteLLM
 ├── start_llamacpp.sh           # Starts llama-server from .env settings
+├── reload_litellm.sh           # Hot-reload: regenerate config + restart LiteLLM (no Claude Code restart)
 ├── litellm_config.yaml         # Auto-generated by start_litellm.sh (do not edit manually)
 ├── CLAUDE.md                   # In-session instructions for Claude Code
 ├── README.md                   # This file
@@ -333,17 +356,17 @@ Why they don't interfere: `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` are set *
 
 ## Ollama vs llama-server
 
-| | Ollama | llama-server (llama.cpp) |
+| | Ollama (`gpt-oss:120b`) | llama-server (`Qwen3.5-27B`) |
 |---|---|---|
 | **Setup** | `ollama pull <model>` | Build llama.cpp + download GGUF |
 | **Model management** | Built-in (`ollama list`, `ollama pull`) | Manual (specify file paths / `.ini` presets) |
 | **Context window** | Model default | `-c` flag (fully customizable) |
 | **Parallel slots** | Automatic | `-np` flag (fully customizable) |
 | **GPU layers** | Automatic | `--n-gpu-layers` flag |
-| **Vision/Multimodal** | Depends on model | `mmproj` GGUF for vision support |
+| **Vision/Multimodal** | **No** — gpt-oss:120b is text-only | **Yes** — via `mmproj` GGUF projector |
 | **Port** | Default `11434` | Any (set in `.env`) |
 | **API format** | OpenAI-compatible `/v1` | OpenAI-compatible `/v1` |
-| **Best for** | Quick setup, experimentation | Production, fine-tuned control |
+| **Best for** | Text tasks, quick setup | Multimodal (vision/OCR), production control |
 
 ---
 
@@ -382,7 +405,7 @@ PRESET=ocr                 # for vision/OCR tasks
 PRESET=instruct-reasoning  # reasoning without thinking tokens
 ```
 
-Then restart `./claude_ollama.sh`.
+Then run `./reload_litellm.sh` to apply (or use `/preset` which does this automatically).
 
 ### Port conflict
 
@@ -499,7 +522,7 @@ cat /tmp/litellm.log
 
 ## Notes
 
-- `litellm_config.yaml` is **auto-generated** on each start — do not edit manually
+- `litellm_config.yaml` is **auto-generated** on each start and each reload — do not edit manually
 - `drop_params: true` — LiteLLM strips Anthropic-only parameters the backend doesn't support
 - `ANTHROPIC_API_KEY=ollama-local` — dummy value, any non-empty string works
 - Env vars are scoped to the `claude_ollama.sh` process only — other terminals are unaffected

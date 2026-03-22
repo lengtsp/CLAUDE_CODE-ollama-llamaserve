@@ -1,0 +1,109 @@
+model_list:
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+  - model_name: claude-opus-4-6
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+  - model_name: claude-haiku-4-6
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+  - model_name: claude-opus-4-5
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+  - model_name: claude-haiku-4-5-20251001
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+  - model_name: claude-3-5-sonnet-20241022
+    litellm_params:
+      model: openai/Qwen3.5-27B
+      api_base: http://127.0.0.1:8081/v1
+      api_key: none
+      temperature: 0.4
+      top_p: 0.5
+      presence_penalty: 1.5
+      merge_reasoning_content_in_choices: true
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+        top_k: 20
+        min_p: 0.0
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
